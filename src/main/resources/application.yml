@@ -1,0 +1,17 @@
+# 配置tomcat端口号
+server:
+  port: 8080
+
+# 配置日志
+logging:
+  level:
+    com.xxx: debug
+
+
+swagger:
+  apiInfoTitle: "LionDance Ignite Api"
+  apiInfoVersion: "v1.0"
+  apiInfoDescription: "LionDance Ignite Api 文档"
+  apiInfoTermsOfServiceUrl: "/doc.html"
+  apiInfoLicense: ""
+  apiInfoLicenseUrl: ""

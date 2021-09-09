@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+<!--
+    Ignite configuration with all defaults and enabled p2p deployment and enabled events.
+-->
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/util
+        http://www.springframework.org/schema/util/spring-util.xsd">
+    <!-- Imports default Ignite configuration -->
+    <bean abstract="true" id="ignite.cfg" class="org.apache.ignite.configuration.IgniteConfiguration">
+        <!-- 设置为 true 以启用示例的分布式类加载，默认为 false。 -->
+        <property name="clusterStateOnStart" value="ACTIVE"/>
+        <property name="peerClassLoadingEnabled" value="true"/>
+
+        <!--持久化存储-->
+        <!--原生持久化是配置在数据区上的。要启用持久化存储，需要在数据区配置中将persistenceEnabled属性设置为true，可以同时有纯内存数据区和持久化数据区。https://www.ignite-service.cn/doc/java/Persistence.html#_1-2-%E5%90%AF%E7%94%A8%E6%8C%81%E4%B9%85%E5%8C%96%E5%AD%98%E5%82%A8
+    -->
+        <property name="dataStorageConfiguration">
+            <bean class="org.apache.ignite.configuration.DataStorageConfiguration">
+                <property name="defaultDataRegionConfiguration">
+                    <bean class="org.apache.ignite.configuration.DataRegionConfiguration">
+                        <property name="persistenceEnabled" value="true"/>
+                    </bean>
+                </property>
+                <!--配置持久化存储目录
+                启用持久化之后，节点就会在{IGNITE_WORK_DIR}/db目录中存储用户的数据、索引和WAL文件，该目录称为存储目录。
+                通过配置DataStorageConfiguration的storagePath属性可以修改存储目录。每个节点都会在存储目录下维护一个子目录树，来存储缓存数据、WAL文件和WAL存档文件。
+                https://www.ignite-service.cn/doc/java/Persistence.html#_1-3-%E9%85%8D%E7%BD%AE%E6%8C%81%E4%B9%85%E5%8C%96%E5%AD%98%E5%82%A8%E7%9B%AE%E5%BD%95
+            -->
+
+                <property name="storagePath" value="../opt/storage"/>
+                <!-- 堆外内存退出 Random-2-LRU退出算法是Random-LRU算法的抗扫描版 在Random-2-LRU算法中，
+                每个数据页面会存储两个最近访问时间戳，退出时，算法会随机地从跟踪数组中选择5个索引值，然后两个最近时间戳中的最小值会被用来和另外4个候选页面中的最小值进行比较。
+                Random-2-LRU比Random-LRU要好，因为它解决了昙花一现的问题，即一个页面很少被访问，但是偶然地被访问了一次，然后就会被退出策略保护很长时间。-->
+               <!-- <property name="dataRegionConfigurations">
+                    <list>
+                        <bean class="org.apache.ignite.configuration.DataRegionConfiguration">
+                            <property name="name" value="20GB_Region"/>
+                            <property name="initialSize" value="#{100L * 1024 * 1024}"/>
+                            <property name="maxSize" value="#{10L * 1024 * 1024 * 1024}"/>
+                            <property name="pageEvictionMode" value="RANDOM_2_LRU"/>
+                        </bean>
+                    </list>
+                </property>-->
+            </bean>
+        </property>
+        <!--配置备份-->
+        <!--
+                <property name="cacheConfiguration">
+                    <bean class="org.apache.ignite.configuration.CacheConfiguration">
+                        &lt;!&ndash; Set the cache name. &ndash;&gt;
+                        <property name="name" value="cacheName"/>
+                        &lt;!&ndash; 在缓存配置中配置backups属性，可以配置备份副本的数量。 &ndash;&gt;
+                        <property name="backups" value="1"/>
+                        &lt;!&ndash;通过指定写同步模式，可以配置更新在主备副本之间是同步模式还是异步模式，如下所示
+                            FULL_SYNC	    客户端节点会等待所有相关的远程节点（主和备）写入或者提交完成。
+                            FULL_ASYNC	    客户端节点不会等待来自相关节点的响应，这时远程节点会在缓存写入或者事务提交方法完成之后稍晚些收到状态更新。
+                            PRIMARY_SYNC	默认模式，客户端节点会等待主节点的写入或者提交完成，但是不会等待备份的更新。#&ndash;&gt;
+                        <property name="writeSynchronizationMode" value="FULL_SYNC"/>
+                        &lt;!&ndash;配置近缓存  &ndash;&gt;
+                        &lt;!&ndash;近缓存是一种本地缓存，用于在本地节点上存储最近或最常访问的数据。假设应用启动了一个客户端节点并定期查询数据，
+                        例如国家/地区代码。因为客户端节点不存储数据，所以这些查询总是从远程节点获取数据。
+                        这时可以配置近缓存，以在应用运行时将国家/地区代码保留在本地节点上，这样可以提高性能。
+                        近缓存为特定的常规缓存配置，并且仅保留该缓存的数据。近缓存将数据存储在堆内存中，可以为近缓存条目配置缓存的最大值和退出策略。
+                        提示
+                        近缓存是完全事务性的，并且每当服务端节点上的数据更改时，它们都会自动更新或失效。&ndash;&gt;
+                        <property name="nearConfiguration">
+                            <bean class="org.apache.ignite.configuration.NearCacheConfiguration">
+                                <property name="nearEvictionPolicyFactory">
+                                    <bean class="org.apache.ignite.cache.eviction.lru.LruEvictionPolicyFactory">
+                                        <property name="maxSize" value="100000"/>
+                                    </bean>
+                                </property>
+                            </bean>
+                        </property>
+                    </bean>
+                </property>-->
+
+
+        <!--为示例启用任务执行事件。 -->
+        <property name="includeEventTypes">
+            <list>
+                <!--Task execution events-->
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_TASK_STARTED"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_TASK_FINISHED"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_TASK_FAILED"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_TASK_TIMEDOUT"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_TASK_SESSION_ATTR_SET"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_TASK_REDUCED"/>
+
+                <!--Cache events-->
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_CACHE_OBJECT_PUT"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_CACHE_OBJECT_READ"/>
+                <util:constant static-field="org.apache.ignite.events.EventType.EVT_CACHE_OBJECT_REMOVED"/>
+            </list>
+        </property>
+
+        <!--显式配置 TCP 发现 SPI 以提供初始节点列表。 -->
+        <property name="discoverySpi">
+            <bean class="org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi">
+                <property name="ipFinder">
+                    <!--
+                        Ignite 提供了几个可以使用的自动发现选项
+                         取而代之的是基于 os 静态 IP 的发现。 有关所有选项的信息，请参阅文档：http://apacheignite.readme.io/docs/cluster-config
+                    -->
+                    <!-- Uncomment static IP finder to enable static-based discovery of initial nodes. -->
+                    <!--<bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder">-->
+                    <bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder">
+                        <property name="addresses">
+                            <list>
+                                <!-- 在分布式环境中，替换为实际的主机 IP 地址。-->
+                                <value>127.0.0.1:47500..47509</value>
+                            </list>
+                        </property>
+                    </bean>
+                </property>
+            </bean>
+        </property>
+    </bean>
+</beans>
